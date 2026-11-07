@@ -1,0 +1,117 @@
+import os
+import requests
+from dotenv import load_dotenv
+from telegram import Update
+from telegram.ext import (
+    Application, CommandHandler, ContextTypes
+)
+from config import PANEL_BASE_URL, AUTH_HEADER, ENDPOINTS, PARAMS
+
+load_dotenv()
+TOKEN = os.getenv("8657589317:AAG3ua3mpDxUUc8kJQC_ri0j42NSZA0yMFY")
+
+# ---------- প্যানেল API কল ----------
+def api_get(endpoint_key: str, params: dict | None = None) -> dict:
+    """প্যানেলে GET কল করে JSON রিটার্ন করে।"""
+    url = PANEL_BASE_URL + ENDPOINTS.get(endpoint_key, "")
+    try:
+        r = requests.get(url, headers=AUTH_HEADER, params=params, timeout=20)
+        if r.headers.get("content-type", "").startswith("application/json"):
+            return r.json()
+        return {"raw": r.text, "status": r.status_code}
+    except Exception as e:
+        return {"error": str(e)}
+
+# ---------- কম্যান্ড হ্যান্ডলার ----------
+async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "👋 স্বাগতম!\n\n"
+        "📋 কম্যান্ড:\n"
+        "/balance - ব্যালেন্স চেক\n"
+        "/services - সার্ভিস লিস্ট\n"
+        "/number <service_id> - নম্বর নিন\n"
+        "/otp <id> - OTP চেক\n"
+        "/cancel <id> - নম্বর বাতিল"
+    )
+
+async def balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    data = api_get("balance")
+    await update.message.reply_text(f"🪙 ব্যালেন্স:\n<pre>{data}</pre>",
+                                    parse_mode="HTML")
+
+async def services(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    data = api_get("services")
+    await update.message.reply_text(f"📡 সার্ভিস:\n<pre>{data}</pre>",
+                                    parse_mode="HTML")
+
+async def number(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not ctx.args:
+        await update.message.reply_text("❗ ব্যবহার: /number <service_id>")
+        return
+    service = ctx.args[0]
+    params = {PARAMS["get_number"]["service"]: service,
+              PARAMS["get_number"]["country"]: ctx.args[1] if len(ctx.args) > 1 else "any"}
+    data = api_get("get_number", params)
+    await update.message.reply_text(f"📱 নম্বর:\n<pre>{data}</pre>",
+                                    parse_mode="HTML")
+
+async def otp(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not ctx.args:
+        await update.message.reply_text("❗ ব্যবহার: /otp <id>")
+        return
+    params = {PARAMS["get_otp"]["id"]: ctx.args[0]}
+    data = api_get("get_otp", params)
+    await update.message.reply_text(f"🔑 OTP:\n<pre>{data}</pre>",
+                                    parse_mode="HTML")
+
+async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if not ctx.args:
+        await update.message.reply_text("❗ ব্যবহার: /cancel <id>")
+        return
+    params = {PARAMS["cancel"]["id"]: ctx.args[0]}
+    data = api_get("cancel", params)
+    await update.message.reply_text(f"🚫 বাতিল:\n<pre>{data}</pre>",
+                                    parse_mode="HTML")
+
+# ---------- মেইন ----------
+def main():
+    app = Application.builder().token(TOKEN).build()
+
+app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("balance", balance))
+    app.add_handler(CommandHandler("services", services))
+    app.add_handler(CommandHandler("number", number))
+    app.add_handler(CommandHandler("otp", otp))
+    app.add_handler(CommandHandler("cancel", cancel))
+
+print("🤖 Bot চলছে...")
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
+import os
+
+# ============================================================
+# এখানে আপনার প্যানেলের API এন্ডপয়েন্ট ও প্যারামিটার বসান
+# ============================================================
+PANEL_BASE_URL = os.getenv( "https://dgd.dgdigital.com/api")
+PANEL_API_TOKEN = os.getenv("", dgd_52cede33337608428138b5f29b19de482548c28a7581c246"")
+
+# Auth header (প্রয়োজন অনুযায়ী বদলান: "Bearer", "token", "apikey" ইত্যাদি)
+AUTH_HEADER = {"Authorization": f"Bearer {PANEL_API_TOKEN}"}
+
+# এন্ডপয়েন্ট (আপনার প্যানেলের ডকমেন্টেশন অনুযায়ী বদলান)
+ENDPOINTS = {
+    "balance": "/balance",                 # GET  -> ব্যালেন্স চেক
+    "get_number": "/get_number",           # GET  -> নম্বর নেওয়া
+    "get_otp": "/get_status",              # GET  -> OTP/স্ট্যাটাস চেক
+    "cancel": "/cancel",                   # GET  -> নম্বর বাতিল
+    "services": "/services",               # GET  -> সার্ভিস লিস্ট
+}
+
+# প্যারামিটার নাম (ডক অনুযায়ী বদলান)
+PARAMS = {
+    "get_number": {"service": "service", "country": "country"},
+    "get_otp": {"id": "id"},
+    "cancel": {"id": "id"},
+}
